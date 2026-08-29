@@ -25,4 +25,7 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["e2e: end-to-end tests, run as their own CI step"]
+markers = [
+    "e2e: end-to-end tests, run as their own CI step",
+    "live: hits the real OpenAI API; merge-to-main only, never in the PR gate",
+]

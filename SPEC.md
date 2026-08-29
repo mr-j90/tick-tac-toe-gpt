@@ -101,7 +101,9 @@ The OpenAI double is a **hand-written fake** exposing `.responses.parse`, return
 
 One GitHub Actions job: checkout, `astral-sh/setup-uv`, `uv sync --frozen`, `ruff check`, `ruff format --check`, `pytest -m "not e2e"`, then `pytest -m e2e` as its own named step. No matrix, no coverage gate.
 
-**The job runs with no `OPENAI_API_KEY`** — which also serves as a live check that the client is still built in a dependency rather than at import.
+**The PR job runs with no `OPENAI_API_KEY`** — which also serves as a live check that the client is still built in a dependency rather than at import. An explicit step fails the build if the key is ever present.
+
+**A second job, `live-ai`, runs on merge to `main` only.** It hits the real API with `gpt-5.6-luna` and asserts one move parses. Its purpose is SDK-drift detection: the hand-written fake mimics the response shape, and nothing else would notice if the real shape moved. It asserts the call parses, never that the model plays well. It never runs on pull requests, so the PR gate stays free, deterministic, fork-safe, and keyless.
 
 ## Deployment
 

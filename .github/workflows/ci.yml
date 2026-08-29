@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      # The app must run without credentials at import time: AsyncOpenAI()
+      # raises without them, so a client built at import would break this job.
+      # Keeping the key out of CI is what keeps that seam honest.
+      - name: Assert no API key in the environment
+        run: |
+          if [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY must not be set in CI"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format
+        run: uv run ruff format --check .
+
+      - name: Unit tests
+        run: uv run pytest -m "not e2e and not live"
+
+      - name: End-to-end tests
+        run: |
+          set +e
+          uv run pytest -m e2e
+          code=$?
+          set -e
+          # pytest exits 5 when it collects nothing, and there are no e2e tests
+          # until #8 lands. Remove this tolerance with the first one.
+          if [ "$code" -ne 0 ] && [ "$code" -ne 5 ]; then
+            exit "$code"
+          fi
+
+  live-ai:
+    # Merge to main only. The PR gate above stays keyless on purpose: a job with
+    # no credentials is what proves no OpenAI client is built at import time.
+    if: github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Require the API key
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY secret is not set."
+            echo "Add it with: gh secret set OPENAI_API_KEY"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Live AI test
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: uv run pytest -m live
