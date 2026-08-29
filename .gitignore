@@ -1,0 +1,9 @@
+# Wayfinder map, decision tickets, and research — stays local, never pushed
+.scratch/
+
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.env
