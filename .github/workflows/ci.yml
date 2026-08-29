@@ -35,7 +35,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Unit tests
-        run: uv run pytest -m "not e2e"
+        run: uv run pytest -m "not e2e and not live"
 
       - name: End-to-end tests
         run: |
@@ -48,3 +48,34 @@ jobs:
           if [ "$code" -ne 0 ] && [ "$code" -ne 5 ]; then
             exit "$code"
           fi
+
+  live-ai:
+    # Merge to main only. The PR gate above stays keyless on purpose: a job with
+    # no credentials is what proves no OpenAI client is built at import time.
+    if: github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Require the API key
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY secret is not set."
+            echo "Add it with: gh secret set OPENAI_API_KEY"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Live AI test
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: uv run pytest -m live
