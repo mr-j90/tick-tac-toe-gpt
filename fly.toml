@@ -1,0 +1,32 @@
+# ONE MACHINE. This is load-bearing, not a cost choice.
+#
+# The game store is in-process (SPEC.md, Model), so a second machine would give
+# two players in the same game two different boards. h2h would break silently:
+# each player would see their own moves and never the opponent's.
+#
+# fly.toml CANNOT enforce a maximum — there is no max_machines_running key.
+# The count is set by the CLI, and it is possible to scale this app into
+# incorrectness with one command:
+#
+#     fly deploy --ha=false     # do not create the default HA pair
+#     fly scale count 1         # and keep it at one
+#
+# Scaling out requires replacing the store with a shared one first. See
+# DEPLOY.md and SPEC.md (Deployment).
+
+app = "tick-tac-toe-gpt"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "off"   # never park it: a stopped machine loses every game
+  auto_start_machines = false
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
