@@ -7,9 +7,11 @@ auto-created attribute chain that silently absorbs typos.
 
 from types import SimpleNamespace
 
+import httpx2
 import pytest
 
 from app import store
+from app.main import app
 
 
 class FakeResponses:
@@ -53,3 +55,12 @@ def clean_store() -> object:
     store.clear()
     yield
     store.clear()
+
+
+@pytest.fixture
+async def client() -> object:
+    """In-process HTTP client. No ports, no subprocess — the transport talks to
+    the app object directly."""
+    transport = httpx2.ASGITransport(app=app)
+    async with httpx2.AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
