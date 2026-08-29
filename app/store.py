@@ -15,7 +15,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Literal
 
-from app.engine import Board, Mark
+from app.engine import Board, Mark, status
 
 MAX_GAMES = 500
 
@@ -61,6 +61,16 @@ def lock_for(game_id: str) -> asyncio.Lock:
 
 def count() -> int:
     return len(_games)
+
+
+def active_ai_games() -> int:
+    """Games that can still burn tokens: ai mode, not yet finished.
+
+    ponytail: O(n) over at most MAX_GAMES on each ai-game creation. A counter
+    kept in sync would be faster and would be one more thing to desync from the
+    board, which is the source of truth.
+    """
+    return sum(1 for g in _games.values() if g.mode == "ai" and status(g.board) == "in_progress")
 
 
 def clear() -> None:

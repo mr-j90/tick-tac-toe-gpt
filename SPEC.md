@@ -50,6 +50,7 @@ Public, no token; the unguessable id is the capability. Returns `{id, board, mod
 | 403 | `not_a_player` |
 | 409 | `not_your_turn`, `square_taken`, `game_over` |
 | 502 | `ai_unavailable` |
+| 429 | `ai_capacity_reached` |
 | 422 | Pydantic default, out-of-range `row`/`col` |
 
 ## AI opponent
@@ -73,7 +74,7 @@ Public, no token; the unguessable id is the capability. Returns `{id, board, mod
 - *Model-level* — illegal move, refusal part, `status == "incomplete"`, `output_parsed is None` — falls through to the blunder picker (already there for difficulty). **No retry**: the human is blocked on the request and the 10s timeout bounds it.
 - *Transport-level* — `APITimeoutError`, `RateLimitError`, `APIConnectionError`, `APIStatusError` — returns `502 ai_unavailable`. Deliberately not absorbed: if OpenAI is down, falling back would make every move random while the player still believes they face an AI.
 
-**Spend guard.** The app is publicly reachable, so a cap on concurrent `ai` games sits alongside the 500-game store cap: an anonymous caller cannot loop game creation and run the key up. `OPENAI_API_KEY` is set with `fly secrets set` — never in the repo, the image, or `fly.toml`.
+**Spend guard.** The app is publicly reachable, so a cap on concurrent unfinished `ai` games sits alongside the 500-game store cap: creating past it gives `429 ai_capacity_reached`. Configurable via `MAX_ACTIVE_AI_GAMES`, default 50. `h2h` is never capped — it costs nothing. This bounds how many games can be spending at once; it is **not** a spend cap over time, which would need per-client rate limiting (out of scope). `OPENAI_API_KEY` is set with `fly secrets set` — never in the repo, the image, or `fly.toml`.
 
 **Stated limitation:** `hard` is raw model play. It is not guaranteed optimal and is beatable; guaranteeing optimality needs a local solver, which is out of scope. Tests assert the AI plays *legally*, never that it plays *well*.
 

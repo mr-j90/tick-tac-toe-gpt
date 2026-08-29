@@ -1,3 +1,4 @@
+import os
 import random
 import secrets
 from dataclasses import replace
@@ -26,6 +27,13 @@ from app.store import Difficulty, Game, Mode
 app = FastAPI(title="tic-tac-toe")
 
 TOKEN_BYTES = 32
+DEFAULT_MAX_ACTIVE_AI_GAMES = 50
+
+
+def max_active_ai_games() -> int:
+    """Read per call, not at import, so it can be changed without a rebuild and
+    exercised in tests without reloading the module."""
+    return int(os.environ.get("MAX_ACTIVE_AI_GAMES", DEFAULT_MAX_ACTIVE_AI_GAMES))
 
 
 @app.get("/health")
@@ -79,6 +87,12 @@ def view(game: Game) -> GameView:
 
 @app.post("/games", status_code=201)
 def create_game(body: CreateGame) -> CreatedGame:
+    if body.mode == "ai" and store.active_ai_games() >= max_active_ai_games():
+        # The app is public and every ai move spends money. This bounds how many
+        # games can be burning tokens at once; it is not a spend cap over time,
+        # which would need per-client rate limiting (out of scope).
+        raise HTTPException(status_code=429, detail="ai_capacity_reached")
+
     marks: list[Mark] = ["X", "O"] if body.mode == "h2h" else ["X"]
     tokens = {mark: secrets.token_urlsafe(TOKEN_BYTES) for mark in marks}
     game = Game(
