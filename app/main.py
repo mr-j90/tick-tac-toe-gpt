@@ -1,11 +1,23 @@
 import secrets
+from dataclasses import replace
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, model_validator
+from fastapi import Depends, FastAPI, Header, HTTPException
+from pydantic import BaseModel, Field, model_validator
 
 from app import store
-from app.engine import Board, Mark, Status, current_player, empty_board, status, winner
+from app.engine import (
+    Board,
+    Mark,
+    Status,
+    apply_move,
+    current_player,
+    empty_board,
+    is_legal,
+    status,
+    winner,
+)
 from app.store import Difficulty, Game, Mode
 
 app = FastAPI(title="tic-tac-toe")
@@ -85,3 +97,51 @@ def read_game(game_id: str) -> GameView:
     if game is None:
         raise HTTPException(status_code=404, detail="unknown_game")
     return view(game)
+
+
+class MoveIn(BaseModel):
+    """Range is enforced here so an out-of-board move is Pydantic's 422 rather
+    than something the handler has to invent a code for."""
+
+    row: int = Field(ge=0, le=2)
+    col: int = Field(ge=0, le=2)
+
+
+def bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
+    if authorization is None or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing_token")
+    return authorization.removeprefix("Bearer ")
+
+
+@app.post("/games/{game_id}/moves")
+async def make_move(
+    game_id: str, body: MoveIn, token: Annotated[str, Depends(bearer_token)]
+) -> GameView:
+    """Validates token, then turn, then square, then persists once.
+
+    Existence is checked before taking the lock so that probing unknown ids
+    cannot grow the lock dict, and re-checked under it because the game may be
+    evicted in between.
+    """
+    if store.get(game_id) is None:
+        raise HTTPException(status_code=404, detail="unknown_game")
+
+    async with store.lock_for(game_id):
+        game = store.get(game_id)
+        if game is None:
+            raise HTTPException(status_code=404, detail="unknown_game")
+
+        mark = game.tokens.get(token)
+        if mark is None:
+            raise HTTPException(status_code=403, detail="not_a_player")
+        if status(game.board) != "in_progress":
+            raise HTTPException(status_code=409, detail="game_over")
+        if current_player(game.board) != mark:
+            raise HTTPException(status_code=409, detail="not_your_turn")
+        if not is_legal(game.board, body.row, body.col):
+            raise HTTPException(status_code=409, detail="square_taken")
+
+        moved = replace(game, board=apply_move(game.board, body.row, body.col, mark))
+        store.save(moved)
+
+    return view(moved)
