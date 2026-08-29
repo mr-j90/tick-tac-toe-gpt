@@ -1,0 +1,27 @@
+[project]
+name = "tick-tac-toe-gpt"
+version = "0.1.0"
+description = "Tic-tac-toe JSON API: human vs human, or human vs an OpenAI-backed opponent."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "anyio>=4.10",
+    "ruff>=0.16.5",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["e2e: end-to-end tests, run as their own CI step"]
