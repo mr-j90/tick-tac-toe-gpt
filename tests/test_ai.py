@@ -3,11 +3,12 @@ import openai
 import pytest
 
 from app.ai import MODEL, AIUnavailable, Move, request_move
+from app.engine import Board
 from tests.conftest import FakeClient, response
 
 pytestmark = pytest.mark.anyio
 
-BOARD: list[list[str | None]] = [["X", None, None], [None, "O", None], [None, None, None]]
+BOARD: Board = [["X", None, None], [None, "O", None], [None, None, None]]
 
 
 async def test_returns_parsed_move() -> None:

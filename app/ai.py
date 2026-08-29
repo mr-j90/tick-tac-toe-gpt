@@ -9,6 +9,8 @@ import openai
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
+from app.engine import Board
+
 # Pinned exactly. The bare `gpt-5.6` is an alias for `gpt-5.6-sol`, a different model.
 MODEL = "gpt-5.6-luna"
 TIMEOUT_S = 10.0
@@ -38,7 +40,7 @@ def get_client() -> AsyncOpenAI:
     return AsyncOpenAI(timeout=TIMEOUT_S, max_retries=MAX_RETRIES)
 
 
-def _render(board: list[list[str | None]]) -> str:
+def _render(board: Board) -> str:
     return "\n".join("".join(cell or "." for cell in row) for row in board)
 
 
@@ -50,9 +52,7 @@ def _refused(resp: object) -> bool:
     return False
 
 
-async def request_move(
-    client: AsyncOpenAI, board: list[list[str | None]], mark: str
-) -> Move | None:
+async def request_move(client: AsyncOpenAI, board: Board, mark: str) -> Move | None:
     """Ask the model for a move.
 
     Returns None on any model-level failure — refusal, incomplete, or an
