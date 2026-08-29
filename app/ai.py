@@ -5,11 +5,14 @@ The client is built per request by `get_client()` and never at import time:
 break keyless CI.
 """
 
+import random
+
 import openai
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from app.engine import Board
+from app.engine import Board, is_legal
+from app.store import Difficulty
 
 # Pinned exactly. The bare `gpt-5.6` is an alias for `gpt-5.6-sol`, a different model.
 MODEL = "gpt-5.6-luna"
@@ -78,3 +81,54 @@ async def request_move(client: AsyncOpenAI, board: Board, mark: str) -> Move | N
     if _refused(resp):
         return None
     return resp.output_parsed
+
+
+# Difficulty is a blunder rate, not a prompt variation: a model asked to play
+# badly is unreliable, and no test can assert a level differs without asserting
+# on model behaviour. A probability is a dial tests can pin exactly.
+BLUNDER_RATES: dict[Difficulty, float] = {"easy": 0.7, "medium": 0.3, "hard": 0.0}
+
+
+def get_rng() -> random.Random:
+    """FastAPI dependency, overridden in tests with a seeded instance."""
+    return random.Random()
+
+
+def legal_moves(board: Board) -> list[Move]:
+    return [
+        Move(row=r, col=c)
+        for r in range(len(board))
+        for c in range(len(board[r]))
+        if board[r][c] is None
+    ]
+
+
+def random_legal_move(board: Board, rng: random.Random) -> Move:
+    """Precondition: the board has an empty square. The caller only reaches
+    here while the game is in progress, and a full board is never in progress."""
+    return rng.choice(legal_moves(board))
+
+
+async def choose_move(
+    client: AsyncOpenAI,
+    rng: random.Random,
+    board: Board,
+    mark: str,
+    difficulty: Difficulty,
+) -> Move:
+    """The AI's move for one turn.
+
+    Blunders with the level's probability; otherwise asks the model. Any
+    model-level failure — refusal, incomplete, unparseable, or a move that is
+    not legal — falls through to the same random picker, with no retry.
+
+    Raises AIUnavailable if the transport failed; that is not absorbed, because
+    a silently random opponent while OpenAI is down is worse than an error.
+    """
+    if rng.random() < BLUNDER_RATES[difficulty]:
+        return random_legal_move(board, rng)
+
+    move = await request_move(client, board, mark)
+    if move is None or not is_legal(board, move.row, move.col):
+        return random_legal_move(board, rng)
+    return move
