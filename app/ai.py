@@ -38,9 +38,20 @@ class AIUnavailable(Exception):
     """Transport-level failure. The caller maps this to 502 ai_unavailable."""
 
 
-def get_client() -> AsyncOpenAI:
-    """FastAPI dependency. Async so the model call does not block the event loop."""
-    return AsyncOpenAI(timeout=TIMEOUT_S, max_retries=MAX_RETRIES)
+def get_client() -> AsyncOpenAI | None:
+    """FastAPI dependency. Async so the model call does not block the event loop.
+
+    Returns None when there are no credentials, rather than raising. This
+    dependency resolves on every move, h2h included, and an h2h game must not
+    require an API key. The caller maps None to 502 ai_unavailable, which is
+    the honest answer: an AI move was wanted and no AI is reachable.
+
+    Credential detection is the SDK's own, not a re-implemented env lookup.
+    """
+    try:
+        return AsyncOpenAI(timeout=TIMEOUT_S, max_retries=MAX_RETRIES)
+    except openai.OpenAIError:
+        return None
 
 
 def _render(board: Board) -> str:

@@ -1,3 +1,4 @@
+import random
 import secrets
 from dataclasses import replace
 from typing import Annotated
@@ -7,6 +8,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from app import store
+from app.ai import AIUnavailable, choose_move, get_client, get_rng
 from app.engine import (
     Board,
     Mark,
@@ -15,6 +17,7 @@ from app.engine import (
     current_player,
     empty_board,
     is_legal,
+    opponent,
     status,
     winner,
 )
@@ -115,9 +118,18 @@ def bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
 
 @app.post("/games/{game_id}/moves")
 async def make_move(
-    game_id: str, body: MoveIn, token: Annotated[str, Depends(bearer_token)]
+    game_id: str,
+    body: MoveIn,
+    token: Annotated[str, Depends(bearer_token)],
+    client: Annotated[object, Depends(get_client)],
+    rng: Annotated[random.Random, Depends(get_rng)],
 ) -> GameView:
     """Validates token, then turn, then square, then persists once.
+
+    In ai mode the model is called inside this same request, so one round trip
+    returns a board with both moves in it. Nothing is written until the end:
+    both moves are applied to a new board and saved once, so a model failure
+    leaves the stored game untouched and the client simply retries its move.
 
     Existence is checked before taking the lock so that probing unknown ids
     cannot grow the lock dict, and re-checked under it because the game may be
@@ -141,7 +153,19 @@ async def make_move(
         if not is_legal(game.board, body.row, body.col):
             raise HTTPException(status_code=409, detail="square_taken")
 
-        moved = replace(game, board=apply_move(game.board, body.row, body.col, mark))
+        board = apply_move(game.board, body.row, body.col, mark)
+
+        if game.mode == "ai" and status(board) == "in_progress":
+            if client is None:
+                raise HTTPException(status_code=502, detail="ai_unavailable")
+            try:
+                ai_move = await choose_move(client, rng, board, opponent(mark), game.difficulty)
+            except AIUnavailable:
+                raise HTTPException(status_code=502, detail="ai_unavailable") from None
+            board = apply_move(board, ai_move.row, ai_move.col, opponent(mark))
+
+        # The single write. Everything above built state; nothing persisted it.
+        moved = replace(game, board=board)
         store.save(moved)
 
     return view(moved)
