@@ -58,7 +58,7 @@ Public, no token; the unguessable id is the capability. Returns `{id, board, mod
 
 **Call:** `client.responses.parse(model=..., input=..., text_format=Move)` on the Responses API. `Move` is all-required (`row: int`, `col: int`); strict schemas forbid optional fields. Read the result from `resp.output_parsed`.
 
-**Client construction:** a `get_client()` FastAPI dependency, built per request, `OpenAI(timeout=10.0, max_retries=1)`. **Never at import time** — `OpenAI()` raises without credentials, which would break keyless CI. `get_rng()` sits alongside it, returning `random.Random`.
+**Client construction:** a `get_client()` FastAPI dependency, built per request, `AsyncOpenAI(timeout=10.0, max_retries=1)`. **Async, not sync**: the move handler awaits the model, and a sync client would block the event loop for every other request in flight, not just the one game its lock protects. **Never at import time** — `OpenAI()` raises without credentials, which would break keyless CI. `get_rng()` sits alongside it, returning `random.Random`.
 
 **Difficulty is a blunder rate** over one "play well" prompt — the probability of substituting a random legal move instead of calling the model:
 
