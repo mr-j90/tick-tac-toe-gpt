@@ -38,16 +38,7 @@ jobs:
         run: uv run pytest -m "not e2e and not live"
 
       - name: End-to-end tests
-        run: |
-          set +e
-          uv run pytest -m e2e
-          code=$?
-          set -e
-          # pytest exits 5 when it collects nothing, and there are no e2e tests
-          # until #8 lands. Remove this tolerance with the first one.
-          if [ "$code" -ne 0 ] && [ "$code" -ne 5 ]; then
-            exit "$code"
-          fi
+        run: uv run pytest -m e2e
 
   live-ai:
     # Merge to main only. The PR gate above stays keyless on purpose: a job with
