@@ -9,6 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from app import store
+
 
 class FakeResponses:
     """Stands in for `client.responses`. Pops one scripted item per call."""
@@ -43,3 +45,11 @@ def response(
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def clean_store() -> object:
+    """The store is module-level, so state would otherwise leak between tests."""
+    store.clear()
+    yield
+    store.clear()
