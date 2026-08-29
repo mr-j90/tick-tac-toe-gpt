@@ -51,6 +51,10 @@ def status(board: Board) -> Status:
     return "draw" if is_full(board) else "in_progress"
 
 
+def opponent(mark: Mark) -> Mark:
+    return "O" if mark == "X" else "X"
+
+
 def is_legal(board: Board, row: int, col: int) -> bool:
     """In range and empty. Whose turn it is belongs to the caller, not here."""
     if not (0 <= row < SIZE and 0 <= col < SIZE):
