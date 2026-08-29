@@ -108,7 +108,7 @@ One GitHub Actions job: checkout, `astral-sh/setup-uv`, `uv sync --frozen`, `ruf
 
 ## Deployment
 
-A `Dockerfile` (uv, `uv sync --frozen --no-dev`, non-root user) and Fly.io hosting.
+A `Dockerfile` on `ghcr.io/astral-sh/uv:python3.14-bookworm-slim` — `uv sync --frozen --no-dev`, dependencies in their own cached layer, non-root user (uid 10001), ~122 MB. Tests and docs are excluded via `.dockerignore`. CI builds the image and smoke-tests the container on every PR, so a broken image fails review rather than the deploy.
 
 **Pinned to one machine** — `min_machines_running = 1`, `max_machines_running = 1`, autostop disabled. This is load-bearing, not a cost choice: the store is in-process, so a second machine would give two players two different games. Scaling out requires reopening the storage decision first.
 
