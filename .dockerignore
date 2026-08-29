@@ -1,0 +1,11 @@
+.git
+.github
+.scratch
+.venv
+tests
+docs
+*.md
+.python-version
+.ruff_cache
+.pytest_cache
+__pycache__

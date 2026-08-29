@@ -40,6 +40,21 @@ jobs:
       - name: End-to-end tests
         run: uv run pytest -m e2e
 
+      # A broken image should fail the PR, not the deploy.
+      - name: Build container image
+        run: docker build -t tick-tac-toe:ci .
+
+      - name: Container serves requests without an API key
+        run: |
+          docker run -d --name ci-check -p 8000:8000 tick-tac-toe:ci
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:8000/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:8000/health
+          test "$(docker exec ci-check id -u)" != "0"
+          docker rm -f ci-check
+
   live-ai:
     # Merge to main only. The PR gate above stays keyless on purpose: a job with
     # no credentials is what proves no OpenAI client is built at import time.
