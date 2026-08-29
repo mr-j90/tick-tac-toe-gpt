@@ -5,6 +5,7 @@ description = "Tic-tac-toe JSON API: human vs human, or human vs an OpenAI-backe
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.141.1",
+    "openai>=3.6.0",
     "uvicorn>=0.34.0",
 ]
 
